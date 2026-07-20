@@ -69,7 +69,7 @@ const cart = {
     page.getByRole('button', { name: `Remove ${productName} from cart` }),
 };
 
-const currency = (amount: number) => `$${amount.toFixed(2)}`;
+const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
 
 async function goToProductCatalog(page: Page) {
   await page.goto('/products');
@@ -105,7 +105,7 @@ async function seedCartState(page: Page, items: CartStorageItem[]) {
   await expect(page.locator('nav')).toBeVisible();
 
   // Expected future localStorage contract based on the cart persistence
-  // requirement in .github/prompts/demo-cart-page.prompt.md.
+  // requirement for the planned cart experience.
   await page.evaluate(
     ({ storageKey, storageItems }) => {
       window.localStorage.setItem(storageKey, JSON.stringify(storageItems));
@@ -181,13 +181,13 @@ test.describe('Cart page management', () => {
     await expect(cart.itemQuantity(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText('2');
 
     // And the subtotal is "$159.98"
-    await expect(cart.subtotalValue(page)).toHaveText(currency(159.98));
+    await expect(cart.subtotalValue(page)).toHaveText(formatCurrency(159.98));
 
     // And the shipping fee is "Free"
     await expect(cart.shippingValue(page)).toHaveText('Free');
 
     // And the total is "$159.98"
-    await expect(cart.totalValue(page)).toHaveText(currency(159.98));
+    await expect(cart.totalValue(page)).toHaveText(formatCurrency(159.98));
   });
 
   test('Update quantities from the cart page', async ({ page }) => {
@@ -214,14 +214,14 @@ test.describe('Cart page management', () => {
 
     // And the line item total is "$159.98"
     await expect(cart.itemTotal(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText(
-      currency(159.98),
+      formatCurrency(159.98),
     );
 
     // And the shipping fee is "Free"
     await expect(cart.shippingValue(page)).toHaveText('Free');
 
     // And the total is "$159.98"
-    await expect(cart.totalValue(page)).toHaveText(currency(159.98));
+    await expect(cart.totalValue(page)).toHaveText(formatCurrency(159.98));
   });
 
   test('Remove the final item from the cart', async ({ page }) => {
@@ -255,17 +255,17 @@ test.describe('Cart page management', () => {
       name: 'Apply shipping when the subtotal stays under $100',
       item: PRODUCTS.thermoNestDeluxe,
       quantity: 1,
-      subtotal: currency(99.99),
-      shipping: currency(25),
-      total: currency(124.99),
+      subtotal: formatCurrency(99.99),
+      shipping: formatCurrency(25),
+      total: formatCurrency(124.99),
     },
     {
       name: 'Apply free shipping when the subtotal exceeds $100',
       item: PRODUCTS.pawTrackSmartCollar,
       quantity: 2,
-      subtotal: currency(159.98),
+      subtotal: formatCurrency(159.98),
       shipping: 'Free',
-      total: currency(159.98),
+      total: formatCurrency(159.98),
     },
   ].forEach(({ name, item, quantity, subtotal, shipping, total }) => {
     test(name, async ({ page }) => {
