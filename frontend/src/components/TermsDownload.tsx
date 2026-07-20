@@ -25,7 +25,7 @@ export function TermsDownload() {
         setLoading(false);
       })
       .catch(err => {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
         setLoading(false);
       });
   }, []);

@@ -2,94 +2,66 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { UAParser } from 'ua-parser-js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
-// List of known bot user agents and SEO crawlers
-const BOT_PATTERNS = [
-  /googlebot/i,
-  /bingbot/i,
-  /slurp/i, // Yahoo
-  /duckduckbot/i,
-  /baiduspider/i,
-  /yandexbot/i,
-  /facebookexternalhit/i,
-  /twitterbot/i,
-  /linkedinbot/i,
-  /whatsapp/i,
-  /telegrambot/i,
-  /applebot/i,
-  /crawler/i,
-  /spider/i,
-  /bot/i,
-  /scraper/i,
-  /chatgpt/i,
-  /gpt/i,
-  /claude/i,
-  /anthropic/i,
-  /openai/i
-];
+// Allow-list of supported languages
+const ALLOWED_LANGUAGES = new Set(['en', 'de', 'es', 'fr']);
 
-const accessDeniedError = 'Access denied';
+// Allow-list of known legal document filenames
+const ALLOWED_FILES = new Set([
+  'terms_v2.1.pdf',
+  'terms_v2.0.pdf',
+  'agb_v2.1.pdf',
+  'cgv_v2.1.pdf',
+  'terminos_v2.1.pdf',
+]);
 
-// Function to detect if request is from a bot
-const isBotRequest = (userAgent: string) => {
-  if (!userAgent) return true; // No user agent = suspicious
-  
-  // Check against known bot patterns
-  for (const pattern of BOT_PATTERNS) {
-    if (pattern.test(userAgent)) {
-      return true;
-    }
-  }
-  
-  // Parse user agent for additional bot detection
-  const parser = new UAParser(userAgent);
-  const result = parser.getResult();
-  
-  // Check if it's a known bot browser
-  if (result.browser.name && /bot|crawler|spider/i.test(result.browser.name)) {
-    return true;
-  }
-  
-  // Check for suspicious OS (many bots don't report proper OS)
-  if (!result.os.name || result.os.name === 'undefined') {
-    return true;
-  }
-  
-  return false;
-};
+const documentsRoot = path.resolve(__dirname, '../../documents/legal');
 
-// Vulnerable terms download endpoint
-router.get('/terms/download', (req, res) => {
+const downloadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+
+// Terms download endpoint
+router.get('/terms/download', downloadLimiter, (req, res) => {
   try {
-    const userAgent = req.get('User-Agent') || '';
-    
-    // Bot detection - block SEO crawlers and AI bots
-    if (isBotRequest(userAgent)) {
-      console.log(`🤖 Bot detected and blocked: ${userAgent}`);
-      res.status(403).json({ 
-        error: 'Access denied',
-        message: 'Automated access to PDF downloads is not permitted',
-        reason: 'Bot/crawler detected'
-      });
-      return;
-    }
-    
-    console.log(`✅ Human user allowed: ${userAgent}`);
-    
     const { file, lang = 'en' } = req.query;
-    if (!file) {
+
+    if (!file || typeof file !== 'string') {
       res.status(400).json({ error: 'File parameter is required' });
       return;
     }
-    // VULNERABILITY: Direct path concatenation allows traversal
-    const documentPath = path.join(__dirname, '../../documents/legal', lang as string, file as string);
+
+    const langStr = typeof lang === 'string' ? lang : 'en';
+
+    if (!ALLOWED_LANGUAGES.has(langStr)) {
+      res.status(400).json({ error: 'Unsupported language' });
+      return;
+    }
+
+    if (!ALLOWED_FILES.has(file)) {
+      res.status(400).json({ error: 'Unsupported file' });
+      return;
+    }
+
+    // Resolve and verify the path stays inside the legal documents root
+    const documentPath = path.resolve(documentsRoot, langStr, file);
+    if (!documentPath.startsWith(documentsRoot + path.sep)) {
+      res.status(400).json({ error: 'Invalid file path' });
+      return;
+    }
+
     if (!fs.existsSync(documentPath)) {
       res.status(404).json({ error: 'Document not found' });
       return;
     }
+
     res.setHeader('Content-Disposition', `attachment; filename="${file}"`);
     res.setHeader('Content-Type', 'application/pdf');
     res.sendFile(documentPath);
@@ -104,7 +76,9 @@ router.get('/terms', (req, res) => {
   const documents = [
     { id: 1, version: '2.1', filename: 'terms_v2.1.pdf', language: 'en', effectiveDate: '2024-01-01' },
     { id: 2, version: '2.1', filename: 'agb_v2.1.pdf', language: 'de', effectiveDate: '2024-01-01' },
-    { id: 3, version: '2.0', filename: 'terms_v2.0.pdf', language: 'en', effectiveDate: '2023-06-01' }
+    { id: 3, version: '2.1', filename: 'cgv_v2.1.pdf', language: 'fr', effectiveDate: '2024-01-01' },
+    { id: 4, version: '2.1', filename: 'terminos_v2.1.pdf', language: 'es', effectiveDate: '2024-01-01' },
+    { id: 5, version: '2.0', filename: 'terms_v2.0.pdf', language: 'en', effectiveDate: '2023-06-01' },
   ];
   res.json(documents);
 });

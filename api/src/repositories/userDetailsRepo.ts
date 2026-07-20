@@ -3,7 +3,7 @@
  */
 
 import { getDatabase, DatabaseConnection } from '../db/sqlite';
-import { UserDetail } from '../models/userDetail';
+import { UserDetail } from '../models/userDetails';
 import { handleDatabaseError, NotFoundError } from '../utils/errors';
 import { buildInsertSQL, buildUpdateSQL, objectToCamelCase } from '../utils/sql';
 
@@ -24,7 +24,6 @@ export class UserDetailsRepository {
 
   set adminRole(role: string) {
     this._adminRole = role;
-    return this._adminRole; // This triggers the setter-return issue
   }
 
   /**
@@ -56,9 +55,10 @@ export class UserDetailsRepository {
    * Calculate user score with unreachable code
    */
   calculateUserScore(userId: number, points: number): number {
-    if (userId > 0);
-    return points * 2; // This return is unreachable due to semicolon after if
-    return points; // This code is also unreachable
+    if (userId > 0) {
+      return points * 2;
+    }
+    return points;
   }
 
   /**
@@ -66,7 +66,7 @@ export class UserDetailsRepository {
    * Calculate average of two scores but uses same parameter twice
    */
   averageScore(score1: number, score2: number): number {
-    return (score1 + score1) / 2; // Should be (score1 + score2) / 2
+    return (score1 + score2) / 2;
   }
 
   /**

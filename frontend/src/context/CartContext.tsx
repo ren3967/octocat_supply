@@ -59,7 +59,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const addItem = (product: CartProductInput, quantity: number) => {
-    if (quantity < 1) {
+    if (!Number.isFinite(quantity) || quantity < 1) {
       return;
     }
 
@@ -79,7 +79,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const updateQuantity = (productId: number, quantity: number) => {
-    if (quantity <= 0) {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       setItems((prev) => prev.filter((item) => item.productId !== productId));
       return;
     }
