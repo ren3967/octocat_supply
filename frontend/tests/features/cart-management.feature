@@ -68,6 +68,15 @@ Feature: Cart page management
     And the checkout button is disabled
     And I can retry loading the cart
 
+  Scenario: Retry a cart refresh after a network failure
+    Given my cart contains 1 "PawTrack Smart Collar"
+    And the next product catalog request fails because the network is unavailable
+    When I open the cart from the navigation
+    And I retry loading the cart after the network recovers
+    Then the network failure message is dismissed
+    And the cart contains 1 "PawTrack Smart Collar" item
+    And the checkout button is enabled
+
   Scenario: Adjust quantity using only the keyboard
     Given my cart contains 1 "PawTrack Smart Collar"
     When I tab to the increase quantity control for "PawTrack Smart Collar"

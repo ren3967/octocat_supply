@@ -172,6 +172,19 @@ async function failCatalogRequest(page: Page) {
   });
 }
 
+async function failNextCatalogRequest(page: Page) {
+  let shouldFail = true;
+  await page.route('**/api/products', async (route) => {
+    if (shouldFail) {
+      shouldFail = false;
+      await route.abort('internetdisconnected');
+      return;
+    }
+
+    await route.fallback();
+  });
+}
+
 async function getFocusSignature(page: Page) {
   return page.evaluate(() => {
     const activeElement = document.activeElement as HTMLElement | null;
@@ -457,6 +470,41 @@ test.describe('Cart page management', () => {
 
     // And I can retry loading the cart
     await expect(cart.retryButton(page)).toBeEnabled();
+  });
+
+  test('Retry a cart refresh after a network failure', async ({ page, request }) => {
+    test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
+
+    // Given my cart contains 1 "PawTrack Smart Collar"
+    await seedCartState(page, [
+      {
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        imgName: product.imgName,
+      },
+    ]);
+
+    // And the next product catalog request fails because the network is unavailable
+    await failNextCatalogRequest(page);
+
+    // When I open the cart from the navigation
+    await openCartFromNavigation(page);
+
+    // And I retry loading the cart after the network recovers
+    await cart.retryButton(page).click();
+
+    // Then the network failure message is dismissed
+    await expect(cart.networkError(page)).not.toBeVisible();
+
+    // And the cart contains 1 "PawTrack Smart Collar" item
+    await expect(cart.item(page, product.productId)).toContainText(product.name);
+    await expect(cart.itemQuantity(page, product.productId)).toHaveText('1');
+
+    // And the checkout button is enabled
+    await expect(cart.checkoutButton(page)).toBeEnabled();
   });
 
   test('Adjust quantity using only the keyboard', async ({ page, request }) => {
