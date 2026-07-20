@@ -74,7 +74,7 @@ Feature: Cart page management
     When I open the cart from the navigation
     And I retry loading the cart after the network recovers
     Then the network failure message is dismissed
-    And the cart contains 1 "PawTrack Smart Collar" items
+    And the cart contains the saved "PawTrack Smart Collar" entry
     And the checkout button is enabled
 
   Scenario: Adjust quantity using only the keyboard

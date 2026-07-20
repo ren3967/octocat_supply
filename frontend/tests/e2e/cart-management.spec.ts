@@ -173,7 +173,8 @@ async function failCatalogRequest(page: Page) {
 }
 
 async function failNextCatalogRequest(page: Page) {
-  // Fail only the first catalog refresh so the retry contract can succeed.
+  // Use Playwright's one-shot route so only the first refresh simulates a
+  // network disconnect and the retry request can succeed.
   await page.route('**/api/products', async (route) => {
     await route.abort('internetdisconnected');
   }, { times: 1 });
@@ -482,7 +483,7 @@ test.describe('Cart page management', () => {
     // Then the network failure message is dismissed
     await expect(cart.networkError(page)).not.toBeVisible();
 
-    // And the cart contains 1 "PawTrack Smart Collar" item
+    // And the cart contains the saved "PawTrack Smart Collar" entry
     await expect(cart.item(page, product.productId)).toContainText(product.name);
     await expect(cart.itemQuantity(page, product.productId)).toHaveText('1');
 
