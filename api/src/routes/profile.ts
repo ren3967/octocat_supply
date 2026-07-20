@@ -106,7 +106,6 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 
 const router = express.Router();
 const profileFields = ['firstName', 'lastName', 'email', 'phone', 'role', 'active'] as const;
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -143,6 +142,30 @@ function validateRole(role: string): ProfileInput['role'] {
   return role as ProfileInput['role'];
 }
 
+function isValidEmail(email: string): boolean {
+  if (email.includes(' ')) {
+    return false;
+  }
+
+  const atIndex = email.indexOf('@');
+  if (atIndex <= 0 || atIndex !== email.lastIndexOf('@') || atIndex === email.length - 1) {
+    return false;
+  }
+
+  const localPart = email.slice(0, atIndex);
+  const domainPart = email.slice(atIndex + 1);
+
+  if (localPart.length > 64 || domainPart.length === 0 || !domainPart.includes('.')) {
+    return false;
+  }
+
+  if (domainPart.startsWith('.') || domainPart.endsWith('.') || domainPart.includes('..')) {
+    return false;
+  }
+
+  return domainPart.split('.').every((label) => label.length > 0);
+}
+
 function validateProfileInput(body: unknown): ProfileInput {
   if (!isRecord(body)) {
     throw new ValidationError('Profile payload must be an object');
@@ -156,7 +179,7 @@ function validateProfileInput(body: unknown): ProfileInput {
   }
 
   const email = requireStringField(body, 'email').toLowerCase();
-  if (!emailPattern.test(email)) {
+  if (!isValidEmail(email)) {
     throw new ValidationError('email must be a valid email address');
   }
 

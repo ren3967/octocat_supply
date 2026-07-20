@@ -46,9 +46,14 @@ export function handleDatabaseError(error: unknown, entity?: string, id?: string
 
   const sqliteError = error as { code?: string; message?: string };
   const message = error instanceof Error ? error.message : String(error);
+  const constraintCodes = new Set([
+    'SQLITE_CONSTRAINT',
+    'SQLITE_CONSTRAINT_UNIQUE',
+    'SQLITE_CONSTRAINT_FOREIGNKEY',
+  ]);
 
   // SQLite constraint violation (UNIQUE, FOREIGN KEY, etc.)
-  if (sqliteError.code?.startsWith('SQLITE_CONSTRAINT')) {
+  if (sqliteError.code && constraintCodes.has(sqliteError.code)) {
     if (sqliteError.message?.includes('UNIQUE')) {
       throw new ConflictError('Resource already exists');
     }
@@ -59,7 +64,7 @@ export function handleDatabaseError(error: unknown, entity?: string, id?: string
   }
 
   // SQLite busy/locked database
-  if (sqliteError.code?.startsWith('SQLITE_BUSY')) {
+  if (sqliteError.code === 'SQLITE_BUSY') {
     throw new DatabaseError('Database is temporarily unavailable', 'DATABASE_BUSY', 503);
   }
 
