@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { FREE_SHIPPING_THRESHOLD } from '../../src/utils/cart';
 
 const normalizeText = (value: string | null) => (value ?? '').replace(/\s+/g, ' ').trim();
 
@@ -30,7 +31,8 @@ test.describe('Cart workflow', () => {
     );
     const unitPrice = Number(unitPriceText.replace(/[^0-9.]/g, ''));
     expect(unitPrice).toBeGreaterThan(0);
-    const quantityForFreeShipping = unitPrice > 0 ? Math.floor(100 / unitPrice) + 1 : 1;
+    const quantityForFreeShipping =
+      unitPrice > 0 ? Math.floor(FREE_SHIPPING_THRESHOLD / unitPrice) + 1 : 1;
 
     await expect(page.getByTestId('cart-summary-shipping')).toHaveText(
       unitPrice > 100 ? 'Free' : '$25.00',

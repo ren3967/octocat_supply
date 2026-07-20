@@ -150,7 +150,9 @@ export default function CartPage() {
                   Free shipping on orders over {formatCurrency(FREE_SHIPPING_THRESHOLD)}.
                 </p>
               </div>
-              <div className="space-y-3 border-y border-gray-200 py-4 dark:border-gray-700">
+              <div
+                className={`space-y-3 border-y py-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
+              >
                 <div className="flex items-center justify-between">
                   <span>Subtotal</span>
                   <span>{formatCurrency(subtotal)}</span>

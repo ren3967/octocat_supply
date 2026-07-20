@@ -58,7 +58,7 @@ const getStoredCartItems = (): CartItem[] => {
         unitPrice: roundCurrency(item.unitPrice),
       }));
   } catch (error) {
-    console.warn('Unable to restore cart from localStorage.', error);
+    console.warn('Failed to parse or validate cart data from localStorage.', error);
     return [];
   }
 };

@@ -3,6 +3,7 @@ import type { Product } from '../types/product';
 export const FREE_SHIPPING_THRESHOLD = 100;
 export const SHIPPING_FEE = 25;
 const MINIMUM_ADDITIONAL_CENTS = 1;
+const toCents = (value: number) => Math.round(value * 100);
 
 export const roundCurrency = (value: number) => Number(value.toFixed(2));
 
@@ -21,6 +22,5 @@ export const getAmountUntilFreeShipping = (subtotal: number) =>
   subtotal > FREE_SHIPPING_THRESHOLD
     ? 0
     : roundCurrency(
-        (FREE_SHIPPING_THRESHOLD * 100 + MINIMUM_ADDITIONAL_CENTS - Math.round(subtotal * 100)) /
-          100,
+        (toCents(FREE_SHIPPING_THRESHOLD) + MINIMUM_ADDITIONAL_CENTS - toCents(subtotal)) / 100,
       );
