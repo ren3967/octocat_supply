@@ -1,4 +1,4 @@
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 /**
  * Cart page management E2E tests
@@ -16,30 +16,30 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 const FUTURE_CART_REASON =
   'Cart page and cart navigation are not implemented yet; this spec documents the expected future UI contract.';
 
+const API_BASE_URL = process.env.PLAYWRIGHT_API_URL ?? 'http://localhost:3000';
 const CART_STORAGE_KEY = 'octocat-cart';
+const FREE_SHIPPING_THRESHOLD = 100;
+const STANDARD_SHIPPING_FEE = 25;
+const MAX_TAB_ATTEMPTS = 15;
 
-const PRODUCTS = {
-  pawTrackSmartCollar: {
-    productId: 4,
-    name: 'PawTrack Smart Collar',
-    unitPrice: 79.99,
-    imgName: 'smart-collar.png',
-  },
-  thermoNestDeluxe: {
-    productId: 6,
-    name: 'ThermoNest Deluxe',
-    unitPrice: 99.99,
-    imgName: 'sleep-nest.png',
-  },
-  legacyLaserToy: {
-    productId: 9999,
-    name: 'Legacy Laser Toy',
-    unitPrice: 49.99,
-    imgName: 'legacy-laser.png',
-  },
+const CATALOG_PRODUCT_NAMES = {
+  pawTrackSmartCollar: 'PawTrack Smart Collar',
+  thermoNestDeluxe: 'ThermoNest Deluxe',
 } as const;
 
-type ProductFixture = (typeof PRODUCTS)[keyof typeof PRODUCTS];
+const LEGACY_UNAVAILABLE_PRODUCT = {
+  productId: 9999,
+  name: 'Legacy Laser Toy',
+  price: 49.99,
+  imgName: 'legacy-laser.png',
+} as const;
+
+interface CatalogProduct {
+  productId: number;
+  name: string;
+  price: number;
+  imgName: string;
+}
 
 interface CartStorageItem {
   productId: number;
@@ -47,6 +47,39 @@ interface CartStorageItem {
   price: number;
   quantity: number;
   imgName: string;
+}
+
+function isCatalogProduct(value: unknown): value is CatalogProduct {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as CatalogProduct).productId === 'number' &&
+    typeof (value as CatalogProduct).name === 'string' &&
+    typeof (value as CatalogProduct).price === 'number' &&
+    typeof (value as CatalogProduct).imgName === 'string'
+  );
+}
+
+async function fetchCatalogProduct(
+  request: APIRequestContext,
+  productName: string,
+): Promise<CatalogProduct> {
+  const response = await request.get(`${API_BASE_URL}/api/products`);
+  expect(response.ok()).toBeTruthy();
+
+  const payload = (await response.json()) as unknown;
+  if (!Array.isArray(payload) || !payload.every(isCatalogProduct)) {
+    throw new Error('Products API returned an unexpected response shape.');
+  }
+
+  const products = payload;
+  const product = products.find(({ name }) => name === productName);
+
+  if (!product) {
+    throw new Error(`Unable to find catalog product named "${productName}".`);
+  }
+
+  return product;
 }
 
 const cart = {
@@ -70,25 +103,36 @@ const cart = {
 };
 
 const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
+const getExpectedShippingLabel = (subtotal: number) =>
+  subtotal >= FREE_SHIPPING_THRESHOLD ? 'Free' : formatCurrency(STANDARD_SHIPPING_FEE);
+const getExpectedTotal = (subtotal: number) =>
+  formatCurrency(
+    subtotal >= FREE_SHIPPING_THRESHOLD ? subtotal : subtotal + STANDARD_SHIPPING_FEE,
+  );
 
 async function goToProductCatalog(page: Page) {
   await page.goto('/products');
   await expect(page.locator('h1:has-text("Products")')).toBeVisible();
 }
 
-async function addProductToCartFromCatalog(page: Page, product: ProductFixture, quantity: number) {
+async function addProductToCartFromCatalog(page: Page, productName: string, quantity: number) {
   await goToProductCatalog(page);
 
   const searchInput = page.locator('input[aria-label="Search products"]');
-  await searchInput.fill(product.name);
-  await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
+  await searchInput.fill(productName);
+  await expect(page.getByRole('heading', { name: productName })).toBeVisible();
+  const increaseQuantityButton = page.getByRole('button', {
+    name: `Increase quantity of ${productName}`,
+  });
+  const quantityValue = page.locator(`[aria-label="Quantity of ${productName}"]`);
 
   for (let count = 0; count < quantity; count += 1) {
-    await page.getByRole('button', { name: `Increase quantity of ${product.name}` }).click();
+    await increaseQuantityButton.click();
+    await expect(quantityValue).toHaveText(String(count + 1));
   }
 
   const addToCartButton = page.getByRole('button', {
-    name: `Add ${quantity} ${product.name} to cart`,
+    name: `Add ${quantity} ${productName} to cart`,
   });
   await expect(addToCartButton).toBeEnabled();
   await addToCartButton.click();
@@ -120,15 +164,43 @@ async function openCartFromNavigation(page: Page) {
   await expect(cart.heading(page)).toBeVisible();
 }
 
-async function tabToElement(page: Page, locator: Locator, attempts = 15) {
+async function getFocusSignature(page: Page) {
+  return page.evaluate(() => {
+    const activeElement = document.activeElement as HTMLElement | null;
+    return (
+      activeElement?.getAttribute('aria-label') ??
+      activeElement?.id ??
+      activeElement?.outerHTML.slice(0, 100) ??
+      ''
+    );
+  });
+}
+
+async function tabToElement(page: Page, locator: Locator, targetName: string, attempts = MAX_TAB_ATTEMPTS) {
+  const startingFocusSignature = await getFocusSignature(page);
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const previousFocusSignature = await getFocusSignature(page);
     await page.keyboard.press('Tab');
+    await page.waitForFunction(
+      (previousSignature) => {
+        const activeElement = document.activeElement as HTMLElement | null;
+        const currentSignature =
+          activeElement?.getAttribute('aria-label') ??
+          activeElement?.id ??
+          activeElement?.outerHTML.slice(0, 100) ??
+          '';
+        return currentSignature !== previousSignature;
+      },
+      previousFocusSignature,
+    );
     if (await locator.evaluate((element) => element === document.activeElement)) {
       return;
     }
   }
 
-  throw new Error('Unable to reach the requested element using keyboard navigation.');
+  throw new Error(
+    `Unable to reach "${targetName}" using keyboard navigation within ${attempts} tabs from "${startingFocusSignature}".`,
+  );
 }
 
 test.describe('Cart page management', () => {
@@ -159,14 +231,15 @@ test.describe('Cart page management', () => {
     await expect(cart.checkoutButton(page)).toBeDisabled();
   });
 
-  test('Add products from the catalog and review the cart', async ({ page }) => {
+  test('Add products from the catalog and review the cart', async ({ page, request }) => {
     test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given I am viewing the product catalog
     await goToProductCatalog(page);
 
     // When I add 2 "PawTrack Smart Collar" items to my cart
-    await addProductToCartFromCatalog(page, PRODUCTS.pawTrackSmartCollar, 2);
+    await addProductToCartFromCatalog(page, product.name, 2);
 
     // And I open the cart from the navigation
     await openCartFromNavigation(page);
@@ -175,73 +248,71 @@ test.describe('Cart page management', () => {
     await expect(cart.badge(page)).toHaveText('2');
 
     // And the cart contains 2 "PawTrack Smart Collar" items
-    await expect(cart.item(page, PRODUCTS.pawTrackSmartCollar.productId)).toContainText(
-      PRODUCTS.pawTrackSmartCollar.name,
-    );
-    await expect(cart.itemQuantity(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText('2');
+    await expect(cart.item(page, product.productId)).toContainText(product.name);
+    await expect(cart.itemQuantity(page, product.productId)).toHaveText('2');
 
     // And the subtotal is "$159.98"
-    await expect(cart.subtotalValue(page)).toHaveText(formatCurrency(159.98));
+    await expect(cart.subtotalValue(page)).toHaveText(formatCurrency(product.price * 2));
 
     // And the shipping fee is "Free"
-    await expect(cart.shippingValue(page)).toHaveText('Free');
+    await expect(cart.shippingValue(page)).toHaveText(getExpectedShippingLabel(product.price * 2));
 
     // And the total is "$159.98"
-    await expect(cart.totalValue(page)).toHaveText(formatCurrency(159.98));
+    await expect(cart.totalValue(page)).toHaveText(getExpectedTotal(product.price * 2));
   });
 
-  test('Update quantities from the cart page', async ({ page }) => {
+  test('Update quantities from the cart page', async ({ page, request }) => {
     test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
     await seedCartState(page, [
       {
-        productId: PRODUCTS.pawTrackSmartCollar.productId,
-        name: PRODUCTS.pawTrackSmartCollar.name,
-        price: PRODUCTS.pawTrackSmartCollar.unitPrice,
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
         quantity: 1,
-        imgName: PRODUCTS.pawTrackSmartCollar.imgName,
+        imgName: product.imgName,
       },
     ]);
 
     await openCartFromNavigation(page);
 
     // When I increase the quantity of "PawTrack Smart Collar" to 2
-    await cart.increaseButton(page, PRODUCTS.pawTrackSmartCollar.name).click();
+    await cart.increaseButton(page, product.name).click();
 
     // Then the line item quantity for "PawTrack Smart Collar" is 2
-    await expect(cart.itemQuantity(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText('2');
+    await expect(cart.itemQuantity(page, product.productId)).toHaveText('2');
 
     // And the line item total is "$159.98"
-    await expect(cart.itemTotal(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText(
-      formatCurrency(159.98),
-    );
+    await expect(cart.itemTotal(page, product.productId)).toHaveText(formatCurrency(product.price * 2));
 
     // And the shipping fee is "Free"
-    await expect(cart.shippingValue(page)).toHaveText('Free');
+    await expect(cart.shippingValue(page)).toHaveText(getExpectedShippingLabel(product.price * 2));
 
     // And the total is "$159.98"
-    await expect(cart.totalValue(page)).toHaveText(formatCurrency(159.98));
+    await expect(cart.totalValue(page)).toHaveText(getExpectedTotal(product.price * 2));
   });
 
-  test('Remove the final item from the cart', async ({ page }) => {
+  test('Remove the final item from the cart', async ({ page, request }) => {
     test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
     await seedCartState(page, [
       {
-        productId: PRODUCTS.pawTrackSmartCollar.productId,
-        name: PRODUCTS.pawTrackSmartCollar.name,
-        price: PRODUCTS.pawTrackSmartCollar.unitPrice,
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
         quantity: 1,
-        imgName: PRODUCTS.pawTrackSmartCollar.imgName,
+        imgName: product.imgName,
       },
     ]);
 
     await openCartFromNavigation(page);
 
     // When I remove "PawTrack Smart Collar" from the cart
-    await cart.removeButton(page, PRODUCTS.pawTrackSmartCollar.name).click();
+    await cart.removeButton(page, product.name).click();
 
     // Then I see the empty cart message "Your cart is empty"
     await expect(cart.emptyState(page)).toContainText('Your cart is empty');
@@ -253,30 +324,29 @@ test.describe('Cart page management', () => {
   [
     {
       name: 'Apply shipping when the subtotal stays under $100',
-      item: PRODUCTS.thermoNestDeluxe,
+      itemName: CATALOG_PRODUCT_NAMES.thermoNestDeluxe,
       quantity: 1,
-      subtotal: formatCurrency(99.99),
-      shipping: formatCurrency(25),
-      total: formatCurrency(124.99),
+      shipping: formatCurrency(STANDARD_SHIPPING_FEE),
     },
     {
       name: 'Apply free shipping when the subtotal exceeds $100',
-      item: PRODUCTS.pawTrackSmartCollar,
+      itemName: CATALOG_PRODUCT_NAMES.pawTrackSmartCollar,
       quantity: 2,
-      subtotal: formatCurrency(159.98),
       shipping: 'Free',
-      total: formatCurrency(159.98),
     },
-  ].forEach(({ name, item, quantity, subtotal, shipping, total }) => {
-    test(name, async ({ page }) => {
+  ].forEach(({ name, itemName, quantity, shipping }) => {
+    test(name, async ({ page, request }) => {
       test.fixme(true, FUTURE_CART_REASON);
+      const item = await fetchCatalogProduct(request, itemName);
+      const subtotal = formatCurrency(item.price * quantity);
+      const total = getExpectedTotal(item.price * quantity);
 
       // Given my cart contains the requested item quantity
       await seedCartState(page, [
         {
           productId: item.productId,
           name: item.name,
-          price: item.unitPrice,
+          price: item.price,
           quantity,
           imgName: item.imgName,
         },
@@ -296,17 +366,18 @@ test.describe('Cart page management', () => {
     });
   });
 
-  test('Keep quantity at the minimum allowed value', async ({ page }) => {
+  test('Keep quantity at the minimum allowed value', async ({ page, request }) => {
     test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
     await seedCartState(page, [
       {
-        productId: PRODUCTS.pawTrackSmartCollar.productId,
-        name: PRODUCTS.pawTrackSmartCollar.name,
-        price: PRODUCTS.pawTrackSmartCollar.unitPrice,
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
         quantity: 1,
-        imgName: PRODUCTS.pawTrackSmartCollar.imgName,
+        imgName: product.imgName,
       },
     ]);
 
@@ -314,10 +385,10 @@ test.describe('Cart page management', () => {
     await openCartFromNavigation(page);
 
     // Then the decrease quantity control for "PawTrack Smart Collar" is disabled
-    await expect(cart.decreaseButton(page, PRODUCTS.pawTrackSmartCollar.name)).toBeDisabled();
+    await expect(cart.decreaseButton(page, product.name)).toBeDisabled();
 
     // And the line item quantity for "PawTrack Smart Collar" is 1
-    await expect(cart.itemQuantity(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText('1');
+    await expect(cart.itemQuantity(page, product.productId)).toHaveText('1');
   });
 
   test('Remove an unavailable saved item', async ({ page }) => {
@@ -326,11 +397,11 @@ test.describe('Cart page management', () => {
     // Given my saved cart contains an unavailable item
     await seedCartState(page, [
       {
-        productId: PRODUCTS.legacyLaserToy.productId,
-        name: PRODUCTS.legacyLaserToy.name,
-        price: PRODUCTS.legacyLaserToy.unitPrice,
+        productId: LEGACY_UNAVAILABLE_PRODUCT.productId,
+        name: LEGACY_UNAVAILABLE_PRODUCT.name,
+        price: LEGACY_UNAVAILABLE_PRODUCT.price,
         quantity: 1,
-        imgName: PRODUCTS.legacyLaserToy.imgName,
+        imgName: LEGACY_UNAVAILABLE_PRODUCT.imgName,
       },
     ]);
 
@@ -342,38 +413,39 @@ test.describe('Cart page management', () => {
     await expect(unavailableMessage).toBeVisible();
 
     // And I can remove the unavailable item from the cart
-    await cart.removeButton(page, PRODUCTS.legacyLaserToy.name).click();
+    await cart.removeButton(page, LEGACY_UNAVAILABLE_PRODUCT.name).click();
     await expect(unavailableMessage).not.toBeVisible();
   });
 
-  test('Adjust quantity using only the keyboard', async ({ page }) => {
+  test('Adjust quantity using only the keyboard', async ({ page, request }) => {
     test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
     await seedCartState(page, [
       {
-        productId: PRODUCTS.pawTrackSmartCollar.productId,
-        name: PRODUCTS.pawTrackSmartCollar.name,
-        price: PRODUCTS.pawTrackSmartCollar.unitPrice,
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
         quantity: 1,
-        imgName: PRODUCTS.pawTrackSmartCollar.imgName,
+        imgName: product.imgName,
       },
     ]);
 
     await openCartFromNavigation(page);
 
     // When I tab to the increase quantity control for "PawTrack Smart Collar"
-    const increaseButton = cart.increaseButton(page, PRODUCTS.pawTrackSmartCollar.name);
-    await tabToElement(page, increaseButton);
+    const increaseButton = cart.increaseButton(page, product.name);
+    await tabToElement(page, increaseButton, `Increase quantity of ${product.name}`);
     await expect(increaseButton).toBeFocused();
 
     // And I press the Space key
     await page.keyboard.press('Space');
 
     // Then the line item quantity for "PawTrack Smart Collar" is 2
-    await expect(cart.itemQuantity(page, PRODUCTS.pawTrackSmartCollar.productId)).toHaveText('2');
+    await expect(cart.itemQuantity(page, product.productId)).toHaveText('2');
 
     // And the shipping fee is "Free"
-    await expect(cart.shippingValue(page)).toHaveText('Free');
+    await expect(cart.shippingValue(page)).toHaveText(getExpectedShippingLabel(product.price * 2));
   });
 });

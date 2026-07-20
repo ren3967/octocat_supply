@@ -56,7 +56,7 @@ Feature: Cart page management
   Scenario: Remove an unavailable saved item
     Given my saved cart contains an unavailable item
     When I open the cart from the navigation
-    Then I see the message "\"Legacy Laser Toy\" is no longer available"
+    Then I see the message '"Legacy Laser Toy" is no longer available'
     And I can remove the unavailable item from the cart
 
   Scenario: Adjust quantity using only the keyboard
