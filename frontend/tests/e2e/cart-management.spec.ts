@@ -87,6 +87,8 @@ const cart = {
   badge: (page: Page) => page.getByTestId('cart-count-badge'),
   heading: (page: Page) => page.getByRole('heading', { name: 'Cart' }),
   emptyState: (page: Page) => page.getByRole('status'),
+  networkError: (page: Page) => page.getByRole('alert'),
+  retryButton: (page: Page) => page.getByRole('button', { name: 'Retry loading cart' }),
   checkoutButton: (page: Page) => page.getByRole('button', { name: 'Checkout' }),
   subtotalValue: (page: Page) => page.getByTestId('cart-subtotal-value'),
   shippingValue: (page: Page) => page.getByTestId('cart-shipping-value'),
@@ -162,6 +164,12 @@ async function openCartFromNavigation(page: Page) {
   await cart.navLink(page).click();
   await expect(page).toHaveURL(/\/cart$/);
   await expect(cart.heading(page)).toBeVisible();
+}
+
+async function failCatalogRequest(page: Page) {
+  await page.route('**/api/products', async (route) => {
+    await route.abort('internetdisconnected');
+  });
 }
 
 async function getFocusSignature(page: Page) {
@@ -415,6 +423,40 @@ test.describe('Cart page management', () => {
     // And I can remove the unavailable item from the cart
     await cart.removeButton(page, LEGACY_UNAVAILABLE_PRODUCT.name).click();
     await expect(unavailableMessage).not.toBeVisible();
+  });
+
+  test('Handle a cart refresh network failure', async ({ page, request }) => {
+    test.fixme(true, FUTURE_CART_REASON);
+    const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
+
+    // Given my cart contains 1 "PawTrack Smart Collar"
+    await seedCartState(page, [
+      {
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        imgName: product.imgName,
+      },
+    ]);
+
+    // And the product catalog request fails because the network is unavailable
+    await failCatalogRequest(page);
+
+    // When I open the cart from the navigation
+    await openCartFromNavigation(page);
+
+    // Then I see the message "We couldn't refresh your cart right now"
+    await expect(cart.networkError(page)).toContainText("We couldn't refresh your cart right now");
+
+    // And I am prompted to check my connection and try again
+    await expect(cart.networkError(page)).toContainText(/check your connection and try again/i);
+
+    // And the checkout button is disabled
+    await expect(cart.checkoutButton(page)).toBeDisabled();
+
+    // And I can retry loading the cart
+    await expect(cart.retryButton(page)).toBeEnabled();
   });
 
   test('Adjust quantity using only the keyboard', async ({ page, request }) => {

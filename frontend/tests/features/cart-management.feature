@@ -59,6 +59,15 @@ Feature: Cart page management
     Then I see the message '"Legacy Laser Toy" is no longer available'
     And I can remove the unavailable item from the cart
 
+  Scenario: Handle a cart refresh network failure
+    Given my cart contains 1 "PawTrack Smart Collar"
+    And the product catalog request fails because the network is unavailable
+    When I open the cart from the navigation
+    Then I see the message "We couldn't refresh your cart right now"
+    And I am prompted to check my connection and try again
+    And the checkout button is disabled
+    And I can retry loading the cart
+
   Scenario: Adjust quantity using only the keyboard
     Given my cart contains 1 "PawTrack Smart Collar"
     When I tab to the increase quantity control for "PawTrack Smart Collar"
