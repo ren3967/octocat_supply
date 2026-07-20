@@ -173,16 +173,9 @@ async function failCatalogRequest(page: Page) {
 }
 
 async function failNextCatalogRequest(page: Page) {
-  let shouldFail = true;
   await page.route('**/api/products', async (route) => {
-    if (shouldFail) {
-      shouldFail = false;
-      await route.abort('internetdisconnected');
-      return;
-    }
-
-    await route.fallback();
-  });
+    await route.abort('internetdisconnected');
+  }, { times: 1 });
 }
 
 async function getFocusSignature(page: Page) {
@@ -202,18 +195,7 @@ async function tabToElement(page: Page, locator: Locator, targetName: string, at
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const previousFocusSignature = await getFocusSignature(page);
     await page.keyboard.press('Tab');
-    await page.waitForFunction(
-      (previousSignature) => {
-        const activeElement = document.activeElement as HTMLElement | null;
-        const currentSignature =
-          activeElement?.getAttribute('aria-label') ??
-          activeElement?.id ??
-          activeElement?.outerHTML.slice(0, 100) ??
-          '';
-        return currentSignature !== previousSignature;
-      },
-      previousFocusSignature,
-    );
+    await expect.poll(async () => getFocusSignature(page)).not.toBe(previousFocusSignature);
     if (await locator.evaluate((element) => element === document.activeElement)) {
       return;
     }
