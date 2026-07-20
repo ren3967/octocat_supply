@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useCart } from '../../context/useCart';
-
-const FREE_SHIPPING_THRESHOLD = 100;
-const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
+import {
+  FREE_SHIPPING_THRESHOLD,
+  formatCurrency,
+  getAmountUntilFreeShipping,
+} from '../../utils/cart';
 
 export default function CartPage() {
   const { darkMode } = useTheme();
@@ -35,8 +37,7 @@ export default function CartPage() {
     );
   }
 
-  const amountUntilFreeShipping =
-    shipping === 0 ? 0 : Number((FREE_SHIPPING_THRESHOLD - subtotal + 0.01).toFixed(2));
+  const amountUntilFreeShipping = shipping === 0 ? 0 : getAmountUntilFreeShipping(subtotal);
 
   return (
     <div

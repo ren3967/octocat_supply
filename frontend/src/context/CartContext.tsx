@@ -3,19 +3,14 @@ import type { ReactNode } from 'react';
 import { CartContext } from './cartContextUtils';
 import type { CartItem } from './cartContextUtils';
 import type { Product } from '../types/product';
+import {
+  FREE_SHIPPING_THRESHOLD,
+  SHIPPING_FEE,
+  getProductUnitPrice,
+  roundCurrency,
+} from '../utils/cart';
 
 const CART_STORAGE_KEY = 'cart';
-const FREE_SHIPPING_THRESHOLD = 100;
-const SHIPPING_FEE = 25;
-
-const roundCurrency = (value: number) => Number(value.toFixed(2));
-
-const getUnitPrice = (product: Product) =>
-  roundCurrency(
-    product.discount != null && product.discount > 0
-      ? product.price * (1 - product.discount)
-      : product.price,
-  );
 
 const isCartItem = (value: unknown): value is CartItem => {
   if (typeof value !== 'object' || value === null) {
@@ -75,7 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addToCart = (product: Product, quantity: number) => {
     const normalizedQuantity = Math.max(1, Math.floor(quantity));
-    const unitPrice = getUnitPrice(product);
+    const unitPrice = getProductUnitPrice(product);
 
     setItems((previousItems) => {
       const existingItem = previousItems.find((item) => item.productId === product.productId);
