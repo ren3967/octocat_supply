@@ -81,7 +81,7 @@ export default function CartPage() {
                   <div className="flex flex-1 flex-col gap-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
                       <div>
-                        <h2 className="text-xl font-semibold">{item.name}</h2>
+                        <h3 className="text-xl font-semibold">{item.name}</h3>
                         <p className={`${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                           {item.description}
                         </p>
@@ -91,7 +91,9 @@ export default function CartPage() {
                       </div>
                       <div className="text-left sm:text-right">
                         <p className="text-sm uppercase tracking-wide text-primary">Unit price</p>
-                        <p className="text-lg font-semibold">{formatCurrency(item.unitPrice)}</p>
+                        <p className="text-lg font-semibold" data-testid="cart-item-unit-price">
+                          {formatCurrency(item.unitPrice)}
+                        </p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -155,7 +157,9 @@ export default function CartPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Shipping</span>
-                  <span>{shipping === 0 ? 'Free' : formatCurrency(shipping)}</span>
+                  <span data-testid="cart-summary-shipping">
+                    {shipping === 0 ? 'Free' : formatCurrency(shipping)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-lg font-semibold">
                   <span>Total</span>

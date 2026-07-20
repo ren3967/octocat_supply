@@ -7,6 +7,7 @@ import {
   FREE_SHIPPING_THRESHOLD,
   SHIPPING_FEE,
   getProductUnitPrice,
+  normalizeQuantity,
   roundCurrency,
 } from '../utils/cart';
 
@@ -53,10 +54,11 @@ const getStoredCartItems = (): CartItem[] => {
       .filter(isCartItem)
       .map((item) => ({
         ...item,
-        quantity: Math.max(1, Math.floor(item.quantity)),
+        quantity: normalizeQuantity(item.quantity),
         unitPrice: roundCurrency(item.unitPrice),
       }));
-  } catch {
+  } catch (error) {
+    console.warn('Unable to restore cart from localStorage.', error);
     return [];
   }
 };
@@ -69,7 +71,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const addToCart = (product: Product, quantity: number) => {
-    const normalizedQuantity = Math.max(1, Math.floor(quantity));
+    const normalizedQuantity = normalizeQuantity(quantity);
     const unitPrice = getProductUnitPrice(product);
 
     setItems((previousItems) => {
@@ -101,7 +103,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((previousItems) =>
       previousItems.map((item) =>
         item.productId === productId
-          ? { ...item, quantity: Math.max(1, Math.floor(quantity)) }
+          ? { ...item, quantity: normalizeQuantity(quantity) }
           : item,
       ),
     );

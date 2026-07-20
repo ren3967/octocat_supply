@@ -107,7 +107,10 @@ export default function Navigation() {
                 />
               </svg>
               {itemCount > 0 && (
-                <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold text-white">
+                <span
+                  className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold text-white"
+                  data-testid="cart-item-count"
+                >
                   {itemCount}
                 </span>
               )}

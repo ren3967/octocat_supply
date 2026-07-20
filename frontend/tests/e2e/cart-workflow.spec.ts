@@ -13,7 +13,7 @@ test.describe('Cart workflow', () => {
     await page.locator('button[id^="add-to-cart-"]').first().click();
 
     const cartLink = page.locator('nav a[href="/cart"]').first();
-    await expect(cartLink.locator('span')).toHaveText('1');
+    await expect(page.getByTestId('cart-item-count')).toHaveText('1');
     await cartLink.click();
 
     await expect(page).toHaveURL(/\/cart/);
@@ -25,12 +25,16 @@ test.describe('Cart workflow', () => {
     await page.reload();
     await expect(page.locator('article').filter({ hasText: firstProductName }).first()).toBeVisible();
 
-    const itemText = normalizeText(await cartItem.textContent());
-    const unitPrice = Number(itemText.match(/Unit price\s*\$([0-9]+\.[0-9]{2})/)?.[1] ?? '0');
+    const unitPriceText = normalizeText(
+      await cartItem.getByTestId('cart-item-unit-price').textContent(),
+    );
+    const unitPrice = Number(unitPriceText.replace(/[^0-9.]/g, ''));
     expect(unitPrice).toBeGreaterThan(0);
     const quantityForFreeShipping = unitPrice > 0 ? Math.floor(100 / unitPrice) + 1 : 1;
 
-    await expect(page.locator('aside')).toContainText(unitPrice > 100 ? 'Free' : '$25.00');
+    await expect(page.getByTestId('cart-summary-shipping')).toHaveText(
+      unitPrice > 100 ? 'Free' : '$25.00',
+    );
 
     const incrementButton = cartItem.getByRole('button', {
       name: `Increase quantity of ${firstProductName}`,
@@ -39,8 +43,8 @@ test.describe('Cart workflow', () => {
       await incrementButton.click();
     }
 
-    await expect(page.locator('nav a[href="/cart"] span')).toHaveText(String(quantityForFreeShipping));
-    await expect(page.locator('aside')).toContainText('Free');
+    await expect(page.getByTestId('cart-item-count')).toHaveText(String(quantityForFreeShipping));
+    await expect(page.getByTestId('cart-summary-shipping')).toHaveText('Free');
     await expect(page.locator('aside')).toContainText('You unlocked free shipping.');
 
     await cartItem.getByRole('button', { name: 'Remove' }).click();
