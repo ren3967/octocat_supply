@@ -144,6 +144,8 @@ async function clearCartState(page: Page) {
   await page.goto('/');
   await expect(page.locator('nav')).toBeVisible();
   await page.evaluate((storageKey) => window.localStorage.removeItem(storageKey), CART_STORAGE_KEY);
+  await page.reload();
+  await expect(page.locator('nav')).toBeVisible();
 }
 
 async function seedCartState(page: Page, items: CartStorageItem[]) {
@@ -158,6 +160,8 @@ async function seedCartState(page: Page, items: CartStorageItem[]) {
     },
     { storageKey: CART_STORAGE_KEY, storageItems: items },
   );
+  await page.reload();
+  await expect(page.locator('nav')).toBeVisible();
 }
 
 async function openCartFromNavigation(page: Page) {
@@ -209,14 +213,14 @@ async function tabToElement(page: Page, locator: Locator, targetName: string, at
 }
 
 test.describe('Cart page management', () => {
+  test.fixme(true, FUTURE_CART_REASON);
+
   test.beforeEach(async ({ page }) => {
     // Navigate away from about:blank so localStorage context is available.
     await page.goto('/');
   });
 
   test('View an empty cart', async ({ page }) => {
-    test.fixme(true, FUTURE_CART_REASON);
-
     // Given I have no items in my cart
     await clearCartState(page);
 
@@ -237,7 +241,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Add products from the catalog and review the cart', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given I am viewing the product catalog
@@ -267,7 +270,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Update quantities from the cart page', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
@@ -300,7 +302,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Remove the final item from the cart', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
@@ -341,7 +342,6 @@ test.describe('Cart page management', () => {
     },
   ].forEach(({ name, itemName, quantity, shipping }) => {
     test(name, async ({ page, request }) => {
-      test.fixme(true, FUTURE_CART_REASON);
       const item = await fetchCatalogProduct(request, itemName);
       const subtotal = formatCurrency(item.price * quantity);
       const total = getExpectedTotal(item.price * quantity);
@@ -372,7 +372,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Keep quantity at the minimum allowed value', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
@@ -397,8 +396,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Remove an unavailable saved item', async ({ page }) => {
-    test.fixme(true, FUTURE_CART_REASON);
-
     // Given my saved cart contains an unavailable item
     await seedCartState(page, [
       {
@@ -423,7 +420,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Handle a cart refresh network failure', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
@@ -457,7 +453,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Retry a cart refresh after a network failure', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
@@ -492,7 +487,6 @@ test.describe('Cart page management', () => {
   });
 
   test('Adjust quantity using only the keyboard', async ({ page, request }) => {
-    test.fixme(true, FUTURE_CART_REASON);
     const product = await fetchCatalogProduct(request, CATALOG_PRODUCT_NAMES.pawTrackSmartCollar);
 
     // Given my cart contains 1 "PawTrack Smart Collar"
