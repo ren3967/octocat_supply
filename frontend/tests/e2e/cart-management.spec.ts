@@ -166,14 +166,14 @@ async function openCartFromNavigation(page: Page) {
   await expect(cart.heading(page)).toBeVisible();
 }
 
-async function failCatalogRequest(page: Page) {
+async function failAllCatalogRequests(page: Page) {
   await page.route('**/api/products', async (route) => {
     await route.abort('internetdisconnected');
   });
 }
 
 async function failNextCatalogRequest(page: Page) {
-  // Use Playwright's one-shot route so only the first refresh simulates a
+  // Use Playwright's one-shot route so only the next request simulates a
   // network disconnect and the retry request can succeed.
   await page.route('**/api/products', async (route) => {
     await route.abort('internetdisconnected');
@@ -438,7 +438,7 @@ test.describe('Cart page management', () => {
     ]);
 
     // And the product catalog request fails because the network is unavailable
-    await failCatalogRequest(page);
+    await failAllCatalogRequests(page);
 
     // When I open the cart from the navigation
     await openCartFromNavigation(page);
