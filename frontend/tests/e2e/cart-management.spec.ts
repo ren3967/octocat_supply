@@ -213,6 +213,7 @@ async function tabToElement(page: Page, locator: Locator, targetName: string, at
 }
 
 test.describe('Cart page management', () => {
+  // Enable this suite once the cart page and cart navigation ship.
   test.fixme(true, FUTURE_CART_REASON);
 
   test.beforeEach(async ({ page }) => {
