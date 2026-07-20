@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfilesRepository } from './profilesRepo';
+import { DatabaseConnection } from '../db/sqlite';
 import { NotFoundError } from '../utils/errors';
 import { ProfileInput } from '../models/profile';
 
@@ -35,7 +36,7 @@ describe('ProfilesRepository', () => {
       close: vi.fn(),
     };
 
-    repository = new ProfilesRepository(mockDb);
+    repository = new ProfilesRepository(mockDb as unknown as DatabaseConnection);
     vi.clearAllMocks();
   });
 
@@ -95,7 +96,7 @@ describe('ProfilesRepository', () => {
 
       expect(mockDb.run).toHaveBeenCalledWith(
         'INSERT INTO profiles (first_name, last_name, email, phone, role, active) VALUES (?, ?, ?, ?, ?, ?)',
-        ['Jane', 'Doe', 'jane.doe@example.com', '555-0001', 'manager', true],
+        ['Jane', 'Doe', 'jane.doe@example.com', '555-0001', 'manager', 1],
       );
       expect(result.profileId).toBe(3);
       expect(result.active).toBe(true);
@@ -135,7 +136,7 @@ describe('ProfilesRepository', () => {
 
       expect(mockDb.run).toHaveBeenCalledWith(
         'UPDATE profiles SET first_name = ?, last_name = ?, email = ?, phone = ?, role = ?, active = ? WHERE profile_id = ?',
-        ['Janet', 'Doe', 'janet.doe@example.com', '555-0001', 'admin', false, 1],
+        ['Janet', 'Doe', 'janet.doe@example.com', '555-0001', 'admin', 0, 1],
       );
       expect(result).toEqual({
         profileId: 1,

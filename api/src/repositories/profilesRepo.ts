@@ -26,9 +26,16 @@ export class ProfilesRepository {
     };
   }
 
+  private toDatabaseProfile(profile: ProfileInput): Record<string, unknown> {
+    return {
+      ...profile,
+      active: profile.active ? 1 : 0,
+    };
+  }
+
   async create(profile: ProfileInput): Promise<Profile> {
     try {
-      const { sql, values } = buildInsertSQL('profiles', profile);
+      const { sql, values } = buildInsertSQL('profiles', this.toDatabaseProfile(profile));
       const result = await this.db.run(sql, values);
       const createdProfile = await this.findById(result.lastID || 0);
 
@@ -44,7 +51,7 @@ export class ProfilesRepository {
 
   async update(id: number, profile: ProfileInput): Promise<Profile> {
     try {
-      const { sql, values } = buildUpdateSQL('profiles', profile, 'profile_id = ?');
+      const { sql, values } = buildUpdateSQL('profiles', this.toDatabaseProfile(profile), 'profile_id = ?');
       const result = await this.db.run(sql, [...values, id]);
 
       if (result.changes === 0) {
