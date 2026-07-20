@@ -9,6 +9,7 @@ import orderDetailRoutes from './routes/orderDetail';
 import orderRoutes from './routes/order';
 import branchRoutes from './routes/branch';
 import headquartersRoutes from './routes/headquarters';
+import profileRoutes from './routes/profile';
 import supplierRoutes from './routes/supplier';
 import { initializeDatabase } from './init-db';
 import { errorHandler } from './utils/errors';
@@ -81,6 +82,7 @@ app.use('/api/order-details', orderDetailRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/headquarters', headquartersRoutes);
+app.use('/api/profiles', profileRoutes);
 app.use('/api/suppliers', supplierRoutes);
 
 app.get('/', (req, res) => {
