@@ -173,6 +173,7 @@ async function failCatalogRequest(page: Page) {
 }
 
 async function failNextCatalogRequest(page: Page) {
+  // Fail only the first catalog refresh so the retry contract can succeed.
   await page.route('**/api/products', async (route) => {
     await route.abort('internetdisconnected');
   }, { times: 1 });
