@@ -40,34 +40,40 @@ export class ConflictError extends DatabaseError {
  * Handle database errors and convert SQLite-specific errors to appropriate types
  */
 export function handleDatabaseError(error: unknown, entity?: string, id?: string | number): never {
-  if(!(error instanceof DatabaseError)) {
-    const message = error instanceof Error ? error.message : error;
-
-    // Default to generic database error
-    throw new DatabaseError(`Database operation failed: ${message}`, 'DATABASE_ERROR', 500);
+  if (error instanceof DatabaseError) {
+    throw error;
   }
+
+  const sqliteError = error as { code?: string; message?: string };
+  const message = error instanceof Error ? error.message : String(error);
+  const constraintCodes = new Set([
+    'SQLITE_CONSTRAINT',
+    'SQLITE_CONSTRAINT_UNIQUE',
+    'SQLITE_CONSTRAINT_FOREIGNKEY',
+  ]);
+
   // SQLite constraint violation (UNIQUE, FOREIGN KEY, etc.)
-  if (error.code === 'SQLITE_CONSTRAINT') {
-    if (error.message.includes('UNIQUE')) {
+  if (sqliteError.code && constraintCodes.has(sqliteError.code)) {
+    if (sqliteError.message?.includes('UNIQUE')) {
       throw new ConflictError('Resource already exists');
     }
-    if (error.message.includes('FOREIGN KEY')) {
+    if (sqliteError.message?.includes('FOREIGN KEY')) {
       throw new ValidationError('Invalid reference to related entity');
     }
-    throw new ValidationError(error.message);
+    throw new ValidationError(sqliteError.message || message);
   }
 
   // SQLite busy/locked database
-  if (error.code === 'SQLITE_BUSY') {
+  if (sqliteError.code === 'SQLITE_BUSY') {
     throw new DatabaseError('Database is temporarily unavailable', 'DATABASE_BUSY', 503);
   }
 
   // Handle case where no rows were affected (for updates/deletes)
-  if (error.message && error.message.includes('No rows affected') && entity && id) {
+  if (sqliteError.message && sqliteError.message.includes('No rows affected') && entity && id) {
     throw new NotFoundError(entity, id);
   }
 
-  throw error;
+  throw new DatabaseError(`Database operation failed: ${message}`, 'DATABASE_ERROR', 500);
 }
 
 /**
